@@ -1,6 +1,8 @@
 # Manhunt.AudioTool
 A tool to edit SFX.RAW/SDT from Manhunt (PC).
 
+Can be also used to extract GTA3/VC sfx.raw.
+
 
 # Usage
 
