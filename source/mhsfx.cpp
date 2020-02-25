@@ -290,10 +290,12 @@ int main(int argc, char* argv[])
 				std::cout << "Processing: " << vSoundNames[i] << std::endl;
 
 				int dataSize = (int)getSizeToEnd(pFile);
-				std::unique_ptr<char[]> dataBuff = std::make_unique<char[]>(dataSize);
+				std::unique_ptr<char[]> dataBuff = std::make_unique<char[]>(calcOffsetFromPad(dataSize, 2048));
 
-				pFile.read(dataBuff.get(), dataSize);
-				oSFXRaw.write(dataBuff.get(), dataSize);
+				pFile.read(dataBuff.get(), calcOffsetFromPad(dataSize, 2048));
+
+
+				oSFXRaw.write(dataBuff.get(), calcOffsetFromPad(dataSize, 2048));
 
 				vSoundTable[i].freq = wav.samplespersecond;
 				vSoundTable[i].size = calcOffsetFromPad(dataSize, 2048);
