@@ -1,6 +1,6 @@
 #pragma once
 
-#pragma pack(push, 1)
+#pragma pack (push,1)
 struct sdt_entry {
 	int  offset;
 	int  size;
@@ -8,7 +8,7 @@ struct sdt_entry {
 	int  loopStart;
 	int  loopEnd;
 };
-#pragma pack(pop)
+#pragma (pop)
 
 struct wav_header {
 	int        header; // RIFF

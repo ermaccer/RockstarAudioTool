@@ -4,7 +4,6 @@
 #include <iostream>
 #include <fstream>
 #include <memory>
-#include <vector>
 #include <string>
 #include <filesystem>
 
@@ -41,8 +40,8 @@ int main(int argc, char* argv[])
 	std::string t_param;
 	std::string r_param;
 
-	std::vector<std::string> vSoundNames;
-	std::vector<sdt_entry>   vSoundTable;
+	std::unique_ptr<std::string[]> vSoundNames;
+	std::unique_ptr<sdt_entry[]> vSoundTable;
 
 	for (int i = 1; i < argc - 1; i++)
 	{
@@ -97,18 +96,24 @@ int main(int argc, char* argv[])
 			return 1;
 		}
 
+		int sounds = getSizeToEnd(pTable) / sizeof(sdt_entry);
+		vSoundTable = std::make_unique<sdt_entry[]>(sounds);
+		vSoundNames = std::make_unique<std::string[]>(sounds);
+		std::cout << "INFO: Loaded " << sounds << " sound entries." << std::endl;
 
-		for (int i = 0; i < (int)getSizeToEnd(pTable) / sizeof(sdt_entry); i++)
+
+		for (int i = 0; i < sounds; i++)
 		{
-			sdt_entry sdt;
-			pTable.read((char*)&sdt, sizeof(sdt_entry));
-			vSoundTable.push_back(sdt);
+			pTable.read((char*)&vSoundTable[i], sizeof(sdt_entry));
 		}
-		
+
+
 		if (!l_param.empty())
 		{
 			FILE* pList = fopen(l_param.c_str(), "rb");
 			char szLine[1024];
+
+			int i = 0;
 
 			while (fgets(szLine, sizeof(szLine), pList))
 			{
@@ -120,15 +125,16 @@ int main(int argc, char* argv[])
 
 				// skip .. and \n
 				std::string strName(szLine + 4, strlen(szLine + 4) - 2);
-				vSoundNames.push_back(strName);
+				vSoundNames[i] = strName;
+				i++;
 			}
 		}
 		else
 		{
-			for (int i = 0; i < vSoundTable.size(); i++)
+			for (int i = 0; i < sounds; i++)
 			{
 				std::string temp = "sound" + std::to_string(i) + ".wav";
-				vSoundNames.push_back(temp);
+				vSoundNames[i] = temp;
 			}
 		}
 
@@ -140,11 +146,11 @@ int main(int argc, char* argv[])
 				"; format:\n"
 				"; a - file\n; b - loopStart\n; c - loopEnd\n";
 
-			for (int i = 0; i < vSoundTable.size(); i++)
+			for (int i = 0; i < sounds; i++)
 				pBuild << vSoundNames[i] << " " << vSoundTable[i].loopStart << " " << vSoundTable[i].loopEnd << std::endl;
 		}
 
-		for (int i = 0; i < vSoundTable.size(); i++)
+		for (int i = 0; i < sounds; i++)
 		{
 			if (checkSlash(vSoundNames[i]))
 				std::experimental::filesystem::create_directories(splitString(vSoundNames[i],false));
@@ -199,9 +205,30 @@ int main(int argc, char* argv[])
 			return 1;
 		}
 		
+		int sounds = 0;
+
 		if (pRebuild)
 		{
 			char szLine[1024];
+			int i = 0;
+			// could use vector here but lazy
+			while (fgets(szLine, sizeof(szLine), pRebuild))
+			{
+				if (szLine[0] == ';' || szLine[0] == '\n')
+					continue;
+
+				char tempStr[256];
+				if (sscanf(szLine, "%s", &tempStr) == 1)
+				{
+					i++;
+				}
+			}
+			sounds = i;
+			vSoundTable = std::make_unique<sdt_entry[]>(sounds);
+			vSoundNames = std::make_unique<std::string[]>(sounds);
+
+			i = 0;
+			fseek(pRebuild, 0, SEEK_SET);
 			while (fgets(szLine, sizeof(szLine), pRebuild))
 			{
 				if (szLine[0] == ';' || szLine[0] == '\n')
@@ -215,14 +242,18 @@ int main(int argc, char* argv[])
 					sdt_entry ent;
 					ent.loopStart = loopStart;
 					ent.loopEnd = loopEnd;
-					vSoundTable.push_back(ent);
+					vSoundTable[i] = ent;
 
 					std::string name(tempStr, strlen(tempStr));
-					vSoundNames.push_back(name);
+					vSoundNames[i] = name;
+					i++;
 				}
 			}
 		}
+
 		// build raw
+
+		std::cout << "INFO: Building archive for " << sounds << " sounds." << std::endl;
 
 		if (!argv[argc - 1])
 		{
@@ -234,7 +265,7 @@ int main(int argc, char* argv[])
 
 		int baseOffset = 0;
 
-		for (int i = 0; i < vSoundTable.size(); i++)
+		for (int i = 0; i < sounds; i++)
 		{
 			std::ifstream pFile(vSoundNames[i], std::ifstream::binary);
 
@@ -276,9 +307,10 @@ int main(int argc, char* argv[])
 
 		std::ofstream oSDT(t_param, std::ofstream::binary);
 
-		for (int i = 0; i < vSoundTable.size(); i++)
+		for (int i = 0; i < sounds; i++)
     		oSDT.write((char*)&vSoundTable[i], sizeof(sdt_entry));
 
-		std::cout << "Finished." << std::endl;
+		std::cout << "Finished." << std::endl; 
 	}
+
 }
