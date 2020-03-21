@@ -10,6 +10,26 @@ struct sdt_entry {
 };
 #pragma (pop)
 
+#pragma pack (push,1)
+struct sdt_entry_ps2_gta
+{
+	int offset;
+	int size;
+	int freq;
+};
+#pragma (pop)
+
+#pragma pack (push,1)
+struct sdt_entry_gta2 {
+	int  offset;
+	int  size;
+	int  freq;
+	int  unk;
+	int  loopStart;
+	int  loopEnd;
+};
+#pragma (pop)
+
 struct wav_header {
 	int        header; // RIFF
 	int        filesize;
@@ -26,3 +46,16 @@ struct wav_header {
 	int        datasize;
 
 };
+
+#pragma pack (push,1)
+struct vag_header {
+	int header;
+	int version;
+	int unk;
+	int dataSize;
+	int freq;
+	char pad[12] = {};
+	char name[16] = {};
+	char _pad[16] = {};
+};
+#pragma (pop)
