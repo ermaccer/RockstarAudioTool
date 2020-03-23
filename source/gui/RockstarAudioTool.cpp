@@ -9,6 +9,7 @@ processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 #include "RockstarAudioTool.h"
 #include <CommCtrl.h>
 #include "SFXManager.h"
+#include "ADF2MP3.h"
 
 #define MAX_LOADSTRING 100
 
@@ -20,6 +21,7 @@ WCHAR szWindowClass[MAX_LOADSTRING];
 
 INT_PTR CALLBACK    Init(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    AboutBox(HWND, UINT, WPARAM, LPARAM);
+INT_PTR CALLBACK    ADFBox(HWND, UINT, WPARAM, LPARAM);
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_opt_ HINSTANCE hPrevInstance,
@@ -232,6 +234,9 @@ INT_PTR CALLBACK Init(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 				
 			if (wParam == IDM_ABOUT)
 				DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), 0, AboutBox);
+
+			if (wParam == ID_TOOLS_ADF2MPC)
+				DialogBox(hInst, MAKEINTRESOURCE(IDD_ADF2MP3), 0, ADFBox);
 		}
 
 
@@ -249,7 +254,6 @@ INT_PTR CALLBACK Init(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 INT_PTR CALLBACK AboutBox(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
 
-
 	switch (message)
 	{
 	case WM_INITDIALOG:
@@ -257,6 +261,57 @@ INT_PTR CALLBACK AboutBox(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 
 	case WM_COMMAND:
 		if (wParam == IDCANCEL || wParam== IDOK)
+		{
+			EndDialog(hDlg, LOWORD(wParam));
+			return (INT_PTR)TRUE;
+		}
+		break;
+	}
+	return (INT_PTR)FALSE;
+}
+
+INT_PTR CALLBACK ADFBox(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+{
+
+	switch (message)
+	{
+	case WM_INITDIALOG:
+		SetWindowTextA(GetDlgItem(hDlg,ADF2MP3_INPUT_PATH), 0);
+		SetWindowTextA(GetDlgItem(hDlg, ADF2MP3_INPUT_PATH2), 0);
+		return (INT_PTR)TRUE;
+
+	case WM_COMMAND:
+		if (wParam == ADF2MP3_SELECT_INPUT)
+			SetWindowTextA(GetDlgItem(hDlg, ADF2MP3_INPUT_PATH), SetPathFromButton("ADF/MP3 (*.adf)(*.mp3)\0*.adf;*.mp3\0All Files (*.*)\0*.*\0", "adf", hDlg));
+		if (wParam == ADF2MP3_SELECT_INPUT2)
+			SetWindowTextA(GetDlgItem(hDlg, ADF2MP3_INPUT_PATH2), SetSavePathFromButton("ADF/MP3 (*.adf)(*.mp3)\0*.adf;*.mp3\0All Files (*.*)\0*.*\0", "adf", hDlg));
+
+		if (wParam == ADF2MP3_CONVERT)
+		{
+			if (GetWindowTextLength(GetDlgItem(hDlg, ADF2MP3_INPUT_PATH)) == 0)
+			{
+				MessageBoxA(0, "No input file specified!", 0, 0);
+				break;
+			}
+			if (GetWindowTextLength(GetDlgItem(hDlg, ADF2MP3_INPUT_PATH2)) == 0)
+			{
+				MessageBoxA(0, "No output file specified!", 0, 0);
+				break;
+			}
+
+			char szINPath[MAX_PATH] = {}, szOUTPath[MAX_PATH] = {};
+			// get raw
+			GetWindowText(GetDlgItem(hDlg, ADF2MP3_INPUT_PATH), (LPSTR)szINPath, GetWindowTextLength(GetDlgItem(hDlg, ADF2MP3_INPUT_PATH)) + 1);
+			// get sdt
+			GetWindowText(GetDlgItem(hDlg, ADF2MP3_INPUT_PATH2), (LPSTR)szOUTPath, GetWindowTextLength(GetDlgItem(hDlg, ADF2MP3_INPUT_PATH2)) + 1);
+
+			ADF2MP3* adf = new ADF2MP3(szINPath, szOUTPath);
+			if (adf->Process())
+				MessageBoxA(0, "Finished!", "Information", MB_ICONINFORMATION);
+
+		}
+
+		if (wParam == IDCANCEL || wParam == IDOK)
 		{
 			EndDialog(hDlg, LOWORD(wParam));
 			return (INT_PTR)TRUE;

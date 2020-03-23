@@ -46,7 +46,7 @@ struct wav_header {
 	int        datasize;
 
 };
-
+#pragma pack (push,1)
 struct wav_header_xbox {
 	int        header; // RIFF
 	int        filesize;
@@ -59,14 +59,15 @@ struct wav_header_xbox {
 	int        bytespersecond;
 	short      blockalign;
 	short      bitspersample;
+	short      bit1;
+	short      bit2;
+	int        factid;
+	int        factsize;
+	int        uncompressedsize;
 	int        dataheader;
 	int        datasize;
-	short      extradata[2];
-	int        numofsamples;
-
-
 };
-
+#pragma (pop)
 
 #pragma pack (push,1)
 struct vag_header {

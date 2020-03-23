@@ -43,6 +43,7 @@ public:
 	bool Process();
 	bool ProcessGTA2();
 	bool ProcessGTA3VC();
+	bool ProcessGTA3VCXBOX();
 	bool ProcessManhuntBuild();
 	bool ProcessPS23VC();
 	bool ProcessStoriesPS2();
