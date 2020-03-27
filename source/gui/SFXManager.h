@@ -2,14 +2,16 @@
 #include <string>
 #include <Windows.h>
 
-#define SUPPORTED_GAMES 4
+#define SUPPORTED_GAMES 6
 #define SUPPORTED_PLATFORMS 4
 
 enum eGames {
+	GAME_GTA,
 	GAME_GTA2,
 	GAME_GTA3_VC,
 	GAME_STORIES,
-	GAME_MANHUNT
+	GAME_MANHUNT,
+	GAME_MH2
 };
 
 enum ePlatforms {
@@ -22,6 +24,10 @@ enum ePlatforms {
 enum eModes {
 	MODE_EXTRACT,
 	MODE_CREATE
+};
+
+enum eFSBVer {
+	FSB_VER3 = 0xF3, FSB_VER4 = 0xF4
 };
 
 class SFXManager {
@@ -48,6 +54,7 @@ public:
 	bool ProcessPS23VC();
 	bool ProcessStoriesPS2();
 	bool ProcessStoriesPSP();
+	bool ProcessManhunt2PC();
 	
 };
 

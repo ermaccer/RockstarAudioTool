@@ -1,5 +1,4 @@
 #include "SFXManager.h"
-#include "sfx.h"
 #include <CommCtrl.h>
 #include <shlobj.h>
 #include <iostream>
@@ -9,7 +8,9 @@
 #include <sstream>
 #include <math.h>
 #include <filesystem>
-
+#include <Windows.h>
+#include "IniReader.h"
+#include "sfx.h"
 #include "filef.h"
 
 void changeEndINT(int *value)
@@ -68,6 +69,7 @@ const char * SFXManager::GetOperationMode()
 	case GAME_GTA3_VC: sprintf(szGameName, "Grand Theft Auto III/Vice City"); break;
 	case GAME_STORIES: sprintf(szGameName, "Grand Theft Auto Stories"); break;
 	case GAME_MANHUNT: sprintf(szGameName, "Manhunt"); break;
+	case GAME_MH2: sprintf(szGameName, "Manhunt 2"); break;
 	}
 
 	switch (platform)
@@ -98,6 +100,8 @@ bool SFXManager::Process()
 			return ProcessGTA3VC();
 		if (game == GAME_MANHUNT && mode == MODE_CREATE)
 			return ProcessManhuntBuild();
+		if (game == GAME_MH2)
+			return ProcessManhunt2PC();
 	}
 	if (platform == PLATFORM_XBOX)
 	{
@@ -530,8 +534,6 @@ bool SFXManager::ProcessGTA3VC()
 				wav.format = ' tmf';
 				wav.sectionsize = 16;
 				wav.waveformat = 1;
-				if (platform == PLATFORM_XBOX && game == GAME_GTA3_VC)
-					wav.waveformat = 0x69;
 				wav.bitspersample = 16;
 				wav.samplespersecond = vSoundTable[i].freq;
 				wav.bytespersecond = vSoundTable[i].freq * 2;
@@ -971,7 +973,6 @@ bool SFXManager::ProcessGTA3VCXBOX()
 
 	return false;
 }
-
 
 bool SFXManager::ProcessManhuntBuild()
 {
@@ -1894,6 +1895,528 @@ bool SFXManager::ProcessStoriesPSP()
 		}
 		fclose(pRebuild);
 	}
+	return false;
+}
+
+bool SFXManager::ProcessManhunt2PC()
+{
+	if (mode == MODE_EXTRACT)
+	{
+		std::ifstream pFile(sdtPath, std::ifstream::binary);
+
+		if (!pFile)
+		{
+			MessageBoxA(0, "Could not open FSB file!", 0, 0);
+			return false;
+		}
+		if (pFile)
+		{
+
+			int fsb = 0;
+
+			char fsb_version;
+			pFile.seekg(3, pFile.beg);
+			pFile.read((char*)&fsb_version, sizeof(char));
+			pFile.seekg(0, pFile.beg);
+
+			switch (fsb_version)
+			{
+			case '3':
+				fsb = FSB_VER3;
+				break;
+			case '4':
+				fsb = FSB_VER4;
+				break;
+			default:
+				MessageBoxA(0, "This version of FSB is not supported!", 0, MB_ICONWARNING);
+				break;
+			}
+			
+			if (fsb == FSB_VER3)
+			{
+				fsb3_header fsb;
+
+				pFile.read((char*)&fsb, sizeof(fsb3_header));
+
+				CIniReader reader(rawPath.c_str());
+
+				
+
+				if (!rawPath.empty())
+				{
+					reader.WriteInteger("FSB", "Version", 3);
+					reader.WriteInteger("FSB", "FSBVer", fsb.ver);
+					reader.WriteInteger("FSB", "FSBMode", fsb.mode);
+
+				}
+
+
+				if (fsb.header != '3BSF')
+				{
+					MessageBoxA(0, "This version of FSB is not supported!", 0, MB_ICONWARNING);
+					return false;
+				}
+
+
+				fsb3_sample fsb3;
+
+				// update progress bar
+				SendMessage(*progressBar, PBM_SETRANGE, 0, MAKELPARAM(0, fsb.samples));
+
+				pFile.read((char*)&fsb3, sizeof(fsb3_sample));
+
+				if (!rawPath.empty())
+				{
+					reader.WriteInteger("FSB", "FSBMode2", fsb3.mode);
+					reader.WriteString("FSB", "FSBName", fsb3.name);
+					reader.WriteInteger("FSB", "FSBSize", fsb3.size);
+					reader.WriteInteger("FSB", "FSBPan", fsb3.pan);
+					reader.WriteInteger("FSB", "FSBVol", fsb3.vol);
+					reader.WriteInteger("FSB", "FSBPri", fsb3.pri);
+					reader.WriteInteger("FSB", "FSBFreq", fsb3.freq);
+					reader.WriteInteger("FSB", "FSBLoopStart", fsb3.loopstart);
+					reader.WriteInteger("FSB", "FSBLoopEnd", fsb3.loopend);
+					reader.WriteFloat("FSB", "FSBData1", fsb3.data1);
+					reader.WriteFloat("FSB", "FSBData2", fsb3.data2);
+					reader.WriteInteger("FSB", "FSBData3", fsb3.data3);
+					reader.WriteInteger("FSB", "FSBData4", fsb3.data4);
+
+				}
+
+
+			
+
+
+				std::unique_ptr<std::string[]> vSoundNames = std::make_unique<std::string[]>(fsb.samples);
+				std::unique_ptr<fsb3_sample_small_header[]> vExtraData = std::make_unique<fsb3_sample_small_header[]>(fsb.samples);
+
+				for (int i = 0; i < fsb.samples; i++)
+				{
+					std::string temp = std::to_string(i) + ".wav";
+					vSoundNames[i] = temp;
+
+				}
+
+				vExtraData[0].samples = fsb3.lenghtsamples;
+				vExtraData[0].size = fsb3.compressed;
+				for (int i = 1; i < fsb.samples; i++)
+					pFile.read((char*)&vExtraData[i], sizeof(fsb3_sample_small_header));
+
+
+
+				if (!cfgPath.empty())
+				{
+					std::ofstream pBuild(cfgPath, std::ofstream::binary);
+					if (!pBuild)
+					{
+						MessageBoxA(0, "Failed to open CFG for writing!", 0, 0);
+						return false;
+					}
+					pBuild << "; build file created by rsfx\n";
+
+					for (int i = 0; i < fsb.samples; i++)
+						pBuild << vSoundNames[i] << " " << std::endl;
+
+					pBuild.close();
+				}
+
+				// get files
+
+				std::experimental::filesystem::current_path(
+					std::experimental::filesystem::system_complete(std::experimental::filesystem::path(outPath)));
+
+				for (int i = 0; i < fsb.samples; i++)
+				{
+
+					sprintf(progressBuffer, "%d/%d", i + 1, fsb.samples);
+					SetWindowText(*filename, vSoundNames[i].c_str());
+					SetWindowText(*numbers, progressBuffer);
+					SendMessage(*progressBar, PBM_STEPIT, 0, 0);
+
+
+					// get sample data
+					int dataSize = vExtraData[i].size;
+					std::unique_ptr<char[]> dataBuff = std::make_unique<char[]>(dataSize);
+					pFile.read(dataBuff.get(), dataSize);
+
+					// create wave header
+					//wav_header_xbox wav = { 'FFIR',vExtraData[i].size + 36 + 20,'EVAW',' tmf',20,0x69,fsb3.channels,fsb3.freq,fsb3.freq ,0x24 * fsb3.channels,4,2,64,'tcaf',4,vExtraData[i].size + 36 + 20 * 10,'atad',vExtraData[i].size + 36 + 20 + 60 };
+
+					wav_header_xbox wav;
+					wav.header = 'FFIR';
+					wav.filesize = vExtraData[i].size + sizeof(wav_header_xbox) - 8;
+					wav.waveheader = 'EVAW';
+					wav.format = ' tmf';
+					wav.sectionsize = 20;
+					wav.waveformat = 0x69;
+					wav.channels = fsb3.channels;
+					wav.samplespersecond = fsb3.freq;
+					wav.bytespersecond = fsb3.freq;
+					wav.blockalign = 0x24 * wav.channels;
+					wav.bitspersample = 4;
+					wav.bit1 = 2;
+					wav.bit2 = 0x64;
+					wav.factid = 'tcaf';
+					wav.factsize = 4;
+					wav.uncompressedsize = vExtraData[i].size;
+					wav.dataheader = 'atad';
+					wav.datasize = wav.filesize - sizeof(wav_header_xbox) - 8 + 16;
+
+					std::ofstream oFile(vSoundNames[i], std::ofstream::binary);
+					oFile.write((char*)&wav, sizeof(wav_header_xbox));
+					oFile.write(dataBuff.get(), dataSize);
+
+				}
+				return true;
+			}
+			if (fsb == FSB_VER4)
+			{
+				fsb4_header fsb4;
+				pFile.read((char*)&fsb4, sizeof(fsb4_header));
+
+
+
+				CIniReader reader(rawPath.c_str());
+
+
+				if (fsb4.header != '4BSF')
+				{
+					MessageBoxA(0, "This version of FSB is not supported!", 0, MB_ICONWARNING);
+					return false;
+				}
+
+
+				if (!rawPath.empty())
+				{
+					reader.WriteInteger("FSB", "Version", 4);
+					reader.WriteInteger("FSB", "FSBVer", fsb4.ver);
+					reader.WriteInteger("FSB", "FSBMode", fsb4.mode);
+					reader.WriteFloat("FSB", "FSBData1", fsb4.data1);
+					reader.WriteFloat("FSB", "FSBData2", fsb4.data2);
+					reader.WriteInteger("FSB", "FSBData3", fsb4.data3);
+					reader.WriteInteger("FSB", "FSBData4", fsb4.data4);
+
+				}
+
+
+				std::unique_ptr<fsb4_sample[]> fsb4_samples = std::make_unique<fsb4_sample[]>(fsb4.samples);
+
+				for (int i = 0; i < fsb4.samples; i++)
+					pFile.read((char*)&fsb4_samples[i], sizeof(fsb4_sample));
+
+				// get files
+
+				std::experimental::filesystem::current_path(
+					std::experimental::filesystem::system_complete(std::experimental::filesystem::path(outPath)));
+
+				// update progress bar
+				SendMessage(*progressBar, PBM_SETRANGE, 0, MAKELPARAM(0, fsb4.samples));
+
+				for (int i = 0; i < fsb4.samples; i++)
+				{
+					sprintf(progressBuffer, "%d/%d", i + 1, fsb4.samples);
+					SetWindowText(*filename, fsb4_samples[i].name);
+					SetWindowText(*numbers, progressBuffer);
+					SendMessage(*progressBar, PBM_STEPIT, 0, 0);
+
+					int dataSize = fsb4_samples[i].compressed;
+					std::unique_ptr<char[]> dataBuff = std::make_unique<char[]>(dataSize);
+					pFile.read(dataBuff.get(), dataSize);
+
+					// create wave header
+					wav_header wav;
+					wav.header = 'FFIR';
+					wav.filesize = dataSize - ((sizeof(wav.filesize) + sizeof(wav.header))) + sizeof(wav_header);
+					wav.waveheader = 'EVAW';
+					wav.format = ' tmf';
+					wav.sectionsize = 16;
+					wav.waveformat = 0x69;
+					wav.channels = fsb4_samples[i].channels;
+					wav.samplespersecond = fsb4_samples[i].freq;
+					wav.bytespersecond = fsb4_samples[i].freq;
+					wav.blockalign = 36;
+					wav.bitspersample = 4;
+					wav.dataheader = 'atad';
+					wav.datasize = wav.filesize - sizeof(wav_header) - 8;
+
+					std::cout << "Processing: " << fsb4_samples[i].name << std::endl;
+					std::ofstream oFile(fsb4_samples[i].name, std::ofstream::binary);
+					oFile.write((char*)&wav, sizeof(wav_header));
+					oFile.write(dataBuff.get(), dataSize);
+
+				}
+				return true;
+			}
+		}
+
+	}
+	if (mode == MODE_CREATE)
+	{
+		if (!std::experimental::filesystem::exists(rawPath))
+		{
+			MessageBoxA(0, "Could not open INI file!", 0, 0);
+			return false;
+		}
+		CIniReader reader(rawPath.c_str());
+
+
+		
+		int fsb_ver = reader.ReadInteger("FSB", "Version", -1);
+
+		if (!(fsb_ver == 3 || fsb_ver == 4))
+		{
+			MessageBoxA(0, "Unknown or not specified FSB version!", 0, 0);
+			return false;
+		}
+
+		if (fsb_ver == 3)
+		{
+			fsb3_header fsb;
+			fsb3_sample fsb3;
+			fsb.mode = reader.ReadInteger("FSB", "FSBMode", 0);
+			fsb.ver = reader.ReadInteger("FSB", "FSBVer", 0);
+			sprintf(fsb3.name, "%s", reader.ReadString("FSB", "FSBName", "none"));
+			fsb3.channels = 1;
+			fsb3.mode = reader.ReadInteger("FSB", "FSBMode2", 0);
+			fsb3.data1 = reader.ReadFloat("FSB", "FSBData1", 1.0);
+			fsb3.data2 = reader.ReadFloat("FSB", "FSBData2", 10000.0);
+			fsb3.data3 = reader.ReadInteger("FSB", "FSBData3",0);
+			fsb3.data4 = reader.ReadInteger("FSB", "FSBData4",0);
+			fsb3.pan = reader.ReadInteger("FSB", "FSBPan", 0);
+			fsb3.vol = reader.ReadInteger("FSB", "FSBVol", 0);
+			fsb3.pri = reader.ReadInteger("FSB", "FSBPri", 0);
+			fsb3.freq = reader.ReadInteger("FSB", "FSBFreq", 0);
+			fsb3.loopstart = reader.ReadInteger("FSB", "FSBLoopStart", 0);
+			fsb3.loopend = reader.ReadInteger("FSB", "FSBLoopEnd", 0);
+			fsb3.size = reader.ReadInteger("FSB", "FSBSize", 0);
+
+			fsb.header = '3BSF';
+
+			std::unique_ptr<std::string[]> vSoundNames;
+			std::unique_ptr<fsb3_sample_small_header[]> vExtraData;
+
+			FILE* pRebuild = fopen(cfgPath.c_str(), "rb");
+
+			if (!pRebuild)
+			{
+				MessageBoxA(0, "Failed to open CFG file!", 0, MB_ICONWARNING);
+				return false;
+			}
+
+			int sounds = 0;
+
+			if (pRebuild)
+			{
+				char szLine[1024];
+				int i = 0;
+				// could use vector here but lazy
+				while (fgets(szLine, sizeof(szLine), pRebuild))
+				{
+					if (szLine[0] == ';' || szLine[0] == '\n')
+						continue;
+
+					char tempStr[256];
+					if (sscanf(szLine, "%s", &tempStr) == 1)
+					{
+						i++;
+					}
+				}
+				sounds = i;
+
+
+				vSoundNames = std::make_unique<std::string[]>(sounds);
+				vExtraData = std::make_unique<fsb3_sample_small_header[]>(sounds);
+				i = 0;
+				fseek(pRebuild, 0, SEEK_SET);
+				while (fgets(szLine, sizeof(szLine), pRebuild))
+				{
+					if (szLine[0] == ';' || szLine[0] == '\n')
+						continue;
+
+					char tempStr[256];
+					if (sscanf(szLine, "%s", &tempStr) == 1)
+					{
+						sscanf(szLine, "%s", &tempStr);
+						std::string name(tempStr, strlen(tempStr));
+						vSoundNames[i] = name;
+						i++;
+					}
+				}
+
+				fsb.samples = sounds;
+
+				std::ofstream oFile(sdtPath, std::ofstream::binary);
+
+
+				SetWindowText(*filename, "Building header");
+				SetWindowText(*numbers,"Please wait...");
+				SendMessage(*progressBar, PBM_STEPIT, 0, 0);
+
+
+				// get samples
+
+
+				std::experimental::filesystem::current_path(
+					std::experimental::filesystem::system_complete(std::experimental::filesystem::path(outPath)));
+
+
+				int dataSizeFirstSound = 0, dataSizeCompressedFirstSound = 0, fsbSize = 0;
+
+				for (int i = 0; i < sounds; i++)
+				{
+					std::ifstream pFile(vSoundNames[i], std::ifstream::binary);
+					if (!pFile)
+					{
+						char buffer[256];
+						sprintf(buffer, "Could not open %s!", vSoundNames[i].c_str());
+						MessageBoxA(0, buffer, 0, 0);
+						SendMessage(*progressBar, PBM_SETSTATE, PBST_ERROR, 0);
+						return false;
+					}
+
+
+					char iwav = 0;
+
+					pFile.seekg(0x28, pFile.beg);
+					pFile.read((char*)&iwav, sizeof(char));
+					SetWindowText(*numbers, (LPCSTR)iwav);
+
+					if (iwav == 'd')
+					{
+						pFile.clear();
+						pFile.seekg(0, pFile.beg);
+						wav_header_adpcm wav;
+						pFile.read((char*)&wav, sizeof(wav_header_adpcm));
+						if (i == 0)
+						{
+							dataSizeFirstSound = wav.channels * 0x40 * (wav.datasize / (0x24 * wav.channels));
+							dataSizeCompressedFirstSound = wav.datasize;
+						}
+						int pcmsize = wav.channels * 0x40 * (wav.datasize / (0x24 * wav.channels));
+						vExtraData[i].samples = pcmsize;
+						vExtraData[i].size = wav.datasize;
+						fsbSize += wav.datasize;
+					}
+					else if (iwav == 'f')
+					{
+						pFile.clear();
+						pFile.seekg(0, pFile.beg);
+						wav_header_xbox wav;
+						pFile.read((char*)&wav, sizeof(wav_header_xbox));
+						if (i == 0)
+						{
+							dataSizeFirstSound = wav.channels * 0x40 * (wav.datasize / (0x24 * wav.channels));
+							dataSizeCompressedFirstSound = wav.datasize;
+						}
+						int pcmsize = wav.channels * 0x40 * (wav.datasize / (0x24 * wav.channels));
+						vExtraData[i].samples = pcmsize;
+						vExtraData[i].size = wav.datasize;
+						fsbSize += wav.datasize;
+					}
+
+					
+					pFile.close();
+				}
+
+				fsb.datasize = fsbSize + sizeof(fsb3_header) + sizeof(fsb3_sample) - 24 - 80;
+				fsb.headersize = 0x50 + sizeof(fsb3_sample_small_header) * fsb.samples - 8;
+				fsb3.compressed = dataSizeCompressedFirstSound;
+				fsb3.lenghtsamples = dataSizeFirstSound;
+
+				oFile.write((char*)&fsb, sizeof(fsb3_header));
+				oFile.write((char*)&fsb3, sizeof(fsb3_sample));
+
+				for (int i = 1; i < sounds; i++)
+					oFile.write((char*)&vExtraData[i], sizeof(fsb3_sample_small_header));
+
+				// get samples
+
+
+
+
+				// update progress bar
+				SendMessage(*progressBar, PBM_SETRANGE, 0, MAKELPARAM(0, sounds));
+
+
+				for (int i = 0; i < sounds; i++)
+				{
+					std::ifstream pFile(vSoundNames[i], std::ifstream::binary);
+
+					sprintf(progressBuffer, "%d/%d", i + 1, fsb.samples);
+					SetWindowText(*filename, vSoundNames[i].c_str());
+					//SetWindowText(*numbers, progressBuffer);
+					SendMessage(*progressBar, PBM_STEPIT, 0, 0);
+
+					if (!pFile)
+					{
+						char buffer[256];
+						sprintf(buffer, "Could not open %s!", vSoundNames[i].c_str());
+						MessageBoxA(0, buffer, 0, 0);
+						SendMessage(*progressBar, PBM_SETSTATE, PBST_ERROR, 0);
+						return false;
+					}
+
+					char iwav = 0;
+
+					pFile.seekg(40, pFile.beg);
+					pFile.read((char*)&iwav, sizeof(char));
+
+					
+					if (iwav == 'f')
+					{
+						pFile.seekg(0, pFile.beg);
+						wav_header_xbox wav;
+						pFile.read((char*)&wav, sizeof(wav_header_xbox));
+						if (!(wav.waveformat == 0x69 || wav.waveformat == 0x11))
+						{
+							char buffer[256];
+							sprintf(buffer, "Invalid format %s!", vSoundNames[i].c_str());
+							MessageBoxA(0, buffer, 0, 0);
+							SendMessage(*progressBar, PBM_SETSTATE, PBST_ERROR, 0);
+							return false;
+						}
+
+					}
+					else if (iwav == 'd')
+					{
+							pFile.seekg(0, pFile.beg);
+							wav_header wav;
+							pFile.read((char*)&wav, sizeof(wav_header));
+							if (!(wav.waveformat == 0x69 || wav.waveformat == 0x11))
+							{
+								char buffer[256];
+								sprintf(buffer, "Invalid format %s!", vSoundNames[i].c_str());
+								MessageBoxA(0, buffer, 0, 0);
+								SendMessage(*progressBar, PBM_SETSTATE, PBST_ERROR, 0);
+								return false;
+							}
+					}
+					else {
+						MessageBoxA(0, "Unsupported WAV format. Supported:\n PCM with 0x11 or 0x69 codec\n ADPCM\n",0,0);
+						return false;
+					}
+
+
+
+
+
+					int dataSize = vExtraData[i].size;
+
+					std::unique_ptr<char[]> dataBuff = std::make_unique<char[]>(dataSize);
+
+					pFile.read(dataBuff.get(), dataSize);
+					oFile.write(dataBuff.get(), dataSize);
+				}
+				return true;
+			}
+			
+
+		}
+		
+	}
+
+	
+
 	return false;
 }
 
