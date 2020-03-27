@@ -1,7 +1,7 @@
 #pragma once
 #include <Windows.h>
 
-#pragma pack (push,1)
+
 struct sdt_entry {
 	int  offset;
 	int  size;
@@ -9,18 +9,23 @@ struct sdt_entry {
 	int  loopStart;
 	int  loopEnd;
 };
-#pragma (pop)
 
-#pragma pack (push,1)
+
+
 struct sdt_entry_ps2_gta
 {
 	int offset;
 	int size;
 	int freq;
 };
-#pragma (pop)
 
-#pragma pack (push,1)
+
+struct sdt_entry_gta {
+	int  offset;
+	int  size;
+	int  freq;
+};
+
 struct sdt_entry_gta2 {
 	int  offset;
 	int  size;
@@ -29,7 +34,7 @@ struct sdt_entry_gta2 {
 	int  loopStart;
 	int  loopEnd;
 };
-#pragma (pop)
+
 
 struct wav_header {
 	int        header; // RIFF
@@ -47,7 +52,6 @@ struct wav_header {
 	int        datasize;
 
 };
-#pragma pack (push,1)
 
 
 struct wav_header_adpcm {
@@ -89,9 +93,7 @@ struct wav_header_xbox {
 	int        dataheader;
 	int        datasize;
 };
-#pragma (pop)
 
-#pragma pack (push,1)
 struct vag_header {
 	int header;
 	int version;
@@ -102,7 +104,6 @@ struct vag_header {
 	char name[16] = {};
 	char _pad[16] = {};
 };
-#pragma (pop)
 
 
 struct fsb4_header {
@@ -112,7 +113,7 @@ struct fsb4_header {
 	int             datasize;
 	int             ver;
 	int             mode;
-	char            pad[8];
+	char            pad[8] = {};
 	int             data1;
 	int             data2;
 	int             data3;

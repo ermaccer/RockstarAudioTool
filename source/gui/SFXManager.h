@@ -47,6 +47,7 @@ public:
 	void IncrementProgressBar(int value);
 	const char* GetOperationMode();
 	bool Process();
+	bool ProcessGTA();
 	bool ProcessGTA2();
 	bool ProcessGTA3VC();
 	bool ProcessGTA3VCXBOX();
